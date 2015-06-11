@@ -58,31 +58,44 @@ Domain Path: /lang
            //echo "<pre>";
            //var_dump($_FILES);
            //echo "</pre>";
-           $foundErrors = false;
+           $errors = false;
+           $recordsImported = 0;
            if($_FILES["csv"]["type"] == "text/csv") {
              //echo "CSV!";
              $row = 1;
              if (($handle = fopen($_FILES["csv"]["tmp_name"], "r")) !== FALSE) {
                while (($data = fgetcsv($handle, 1000, $this->delimiter)) !== FALSE) {
-                 if($row == 1) { $recordIds = $data; }
-                 elseif($row == 2) { $recordLabels = $data; }
+                 if($row == 1) { $fieldKeys = $data; }
+                 elseif($row == 2) {  } //do nothing
                  else {
-                   if($this->addEntry($recordIds, $data)) {
-                     echo ".";
+                   if($this->addEntry($fieldKeys, $data)) {
+                     echo "Regel $row geimporteerd!<br/>\n";
+                     $recordsImported++;
                    } else {
-                     echo "Fout bij het importeren van entry:<br/>\n";
-                     var_dump($data);
+                     $errors .= "Fout bij het importeren van entry op regel $row:<br/>\n";
+                     //echo "<hr/>"; var_dump($data); echo "<hr/>";
                    }
                  }
                  $row++;
+                 echo "<hr/>";
                }
                //var_dump($recordIds);
                fclose($handle);
+               echo "$recordsImported records geimporteerd!<br/>\n";
+             } else {
+               $errors .= "Upload mislukt! Kon bestand " . $_FILES["csv"]["tmp_name"] . " niet lezen. Upload is <strong>niet</strong> uitgevoerd!<br/>\n";
              }
+           } else {
+             $errors .= "Verkeerd bestandstype! Gevonden: '" . $_FILES["csv"]["type"] . "', verwacht: 'text/csv'. Upload is <strong>niet</strong> uitgevoerd! <br/>\n";
+           }
+           if($errors !== false) {
+             echo "<h2 style=\"color: red\">Fout gevonden!</h2>\n<p>";
+             echo $errors;
+             echo "</p>\n";
            }
          }
 
-         private function addEntry($recordIds, $data) {
+         private function addEntry($fieldKeys, $data) {
            $user = wp_get_current_user();
 
            //set up the basic entry fields
@@ -94,17 +107,22 @@ Domain Path: /lang
            $iterator = 0;
 
            //check if nr of fields matches with first row (ids)
-           if( count($recordIds) != count($data)) {
-             echo "Het aantal velden komt niet overeen van dit record:<br/>\n";
-             var_dump($data);
+           if( count($fieldKeys) != count($data)) {
+             echo "Het aantal velden in het sjabloon komt niet overeen met het te importeren record (aantal keys: " . count($fieldKeys) . ", aantal waarden: " . count($data) . ")<br/>\n";
+             echo "Inhoud regel: "; var_dump($data); echo "<br/>";
              return false;
            }
 
            //iterate fields
-           foreach($recordIds as $recordId) {
-             $entry[$iterator] = $data[$iterator];
+           $valueFound = false;
+           foreach($fieldKeys as $key) {
+             $entry[$key] = $data[$iterator];
+             if($data[$iterator]!="") {
+               $valueFound = true;
+             }
              $iterator++;
            }
+           if(!$valueFound) { echo "Lege regel gevonden.<br/>"; return false;}
 
            //return id of entry or false in case of error
            return GFAPI::add_entry( $entry );
